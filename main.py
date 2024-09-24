@@ -1,19 +1,25 @@
 # main.py
 
-from controller import QRCodeController
+# Importer la configuration Firebase et les modules MVC
+from firebase_config import db
+from controller import Controller
+from view import View
+import tkinter as tk
 
+# Initialiser l'application en récupérant les données depuis Firebase
 def main():
-    # Initialiser le contrôleur
-    qr_controller = QRCodeController()
+    # Créer la fenêtre principale de l'application Tkinter
+    root = tk.Tk()
+    
+    # Créer le contrôleur pour gérer les données
+    controller = Controller()
 
-    while True:
-        # Ajouter un produit via l'interaction
-        qr_controller.ajouter_produit_interactif()
+    # Créer la vue (interface utilisateur) en utilisant le contrôleur
+    app = View(root, controller)
 
-        # Demander à l'utilisateur s'il veut ajouter un autre produit
-        continuer = input("Voulez-vous ajouter un autre produit ? (o/n) : ")
-        if continuer.lower() != 'o':
-            break
+    # Lancer l'interface graphique Tkinter
+    root.mainloop()
 
+# Point d'entrée de l'application
 if __name__ == "__main__":
     main()
