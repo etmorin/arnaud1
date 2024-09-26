@@ -2,20 +2,22 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from controller import Controller
 from selection_context import SelectionContext
-from state import NeutralState, ProductSelectedState, MovingProductState
+from state import NeutralState, ProductSelectedState, MovingProductState, AddingProductState
 
 class View:
     def __init__(self, root, controller):
+
+        self.entry = True
         self.controller = controller
         self.root = root
         self.root.title("Gestion des Entrepôts")
 
         # Créer le contexte de sélection avec le State Pattern
-        self.context = SelectionContext(self)
+        self.context = SelectionContext(self,controller)
 
         # Indicateur de réinitialisation de sélection
         self.resetting_selection = False
-
+        self.emplacement_depart = None
         # Agrandir la fenêtre principale
         self.root.geometry("1200x800")  # Agrandit la fenêtre
 
@@ -58,16 +60,39 @@ class View:
         self.afficher_arborescence()
 
     def on_tree_select(self, event):
+        """
+        Gère la sélection d'un élément dans l'arborescence.
+        Affiche dans la console l'emplacement et l'entrepôt sélectionnés.
+        """
         # Ignorer les événements de sélection pendant la réinitialisation
         if self.resetting_selection:
             return
-        
-        # Récupérer l'identifiant de l'élément sélectionné dans l'arborescence
-        selected_item_id = self.tree.focus()  # Utiliser l'identifiant de l'élément
-        item_data = self.tree.item(selected_item_id)  # Obtenir les données de l'élément
 
-        # Déléguer la gestion de la sélection au contexte en passant l'identifiant
-        self.context.handle_selection(selected_item_id)  # Passer l'identifiant de l'élément
+        # Récupérer l'identifiant de l'élément sélectionné dans l'arborescence
+        selected_item_id = self.tree.focus()  # Utiliser l'identifiant de l'élément sélectionné
+        item_data = self.tree.item(selected_item_id)  # Obtenir les données de l'élément sélectionné
+        
+        # Vérifier si un entrepôt ou un emplacement est sélectionné
+        parent_item = self.tree.parent(selected_item_id)
+        if parent_item:
+            # Si c'est un emplacement
+            self.entrepot_selectionne = self.tree.item(parent_item)['text']
+            self.emplacement_selectionne = item_data['text'].split(" ")[0]  # Nom de l'emplacement, ex: "A1"
+            
+            # Afficher l'information dans la console
+            print(f"Entrepôt sélectionné: {self.entrepot_selectionne}")
+            print(f"Emplacement sélectionné: {self.emplacement_selectionne}")
+        else:
+            # Si c'est un entrepôt
+            self.entrepot_selectionne = item_data['text']
+            self.emplacement_selectionne = None
+
+            # Afficher l'information dans la console
+            print(f"Entrepôt sélectionné: {self.entrepot_selectionne} (aucun emplacement sélectionné)")
+
+        # Déléguer la gestion de la sélection au contexte pour gérer les états
+        self.context.handle_selection(selected_item_id)
+
 
 
     def is_product_selected(self, selected_item_id):
@@ -117,7 +142,7 @@ class View:
         """
         self.btn_ajouter_produit.config(state=tk.DISABLED)
         self.btn_deplacer_produit.config(state=tk.DISABLED)
-        messagebox.showinfo("Déplacement", "Sélectionnez un nouvel emplacement vide.")
+
 
     def activate_move_mode(self):
         """
@@ -125,58 +150,87 @@ class View:
         """
         self.btn_ajouter_produit.config(state=tk.DISABLED)
         self.btn_deplacer_produit.config(state=tk.DISABLED)
-        messagebox.showinfo("Déplacement", "Sélectionnez un nouvel emplacement vide pour déplacer le produit.")
+        messagebox.showinfo("Déplacement", "Sélectionnez un nouvel emplacement  pour déplacer le produit.")
 
     def confirm_move(self, selected_item_id):
         """
         Confirme le déplacement du produit vers un nouvel emplacement.
+        Utilise l'emplacement de départ sauvegardé dans la Vue.
         """
+        # Vérifier que l'emplacement de départ est bien défini dans la Vue
+        if not self.emplacement_depart:
+            print("Erreur : Emplacement de départ non défini dans la Vue.")
+            return False
+
+        # Récupérer les informations de l'emplacement de départ
+        ancien_entrepot = self.emplacement_depart['entrepot']
+        ancien_emplacement_obj = self.emplacement_depart['objet_emplacement']
+        produit_deplace = ancien_emplacement_obj.produit  # Sauvegarder le produit déplacé avant de libérer l'emplacement
+
+        # Vérifier que l'emplacement de départ contient un produit
+        if not produit_deplace:
+            print(f"Erreur : L'emplacement de départ {ancien_emplacement_obj.nom} dans {ancien_entrepot} est vide.")
+            return False
+
+        # Récupérer les informations de l'emplacement cible
         selected_item_data = self.tree.item(selected_item_id)
         nouvel_entrepot_selectionne = self.tree.item(self.tree.parent(selected_item_id))['text']
         nouvel_emplacement_nom = selected_item_data['text'].split(" ")[0]
-        
-        emplacement_cible = self.controller.entrepots[nouvel_entrepot_selectionne].get_emplacement(nouvel_emplacement_nom)
-        emplacement_source = self.controller.entrepots[self.entrepot_selectionne].get_emplacement(self.emplacement_selectionne)
+        nouvel_emplacement_obj = self.controller.entrepots[nouvel_entrepot_selectionne].get_emplacement(nouvel_emplacement_nom)
 
-        if emplacement_cible.est_vide():
-            # Déplacement simple si l'emplacement est vide
+        # Vérifier l'état de l'emplacement cible
+        if nouvel_emplacement_obj.est_vide():
+            # Déplacement simple si l'emplacement cible est vide
             success = self.controller.deplacer_produit(
-                self.entrepot_selectionne, emplacement_source,
-                nouvel_entrepot_selectionne, emplacement_cible
+                ancien_entrepot, ancien_emplacement_obj,
+                nouvel_entrepot_selectionne, nouvel_emplacement_obj
             )
             if success:
-                messagebox.showinfo("Succès", f"Produit {self.produit_selectionne.nom} déplacé avec succès.")
+                print(f"Produit {produit_deplace.nom} déplacé avec succès vers {nouvel_emplacement_nom}.")
                 self.reset_selection()
                 self.refresh_tree_view()
+                self.emplacement_depart = None
             else:
                 messagebox.showerror("Erreur", "Le déplacement du produit a échoué.")
         else:
-            # Si l'emplacement est occupé, proposer un échange
-            produit_cible = emplacement_cible.produit
-            confirmation = messagebox.askyesno(
+            # Si l'emplacement cible n'est pas vide, proposer un échange
+            produit_cible = nouvel_emplacement_obj.produit
+            confirmation_initiale = messagebox.askyesno(
                 "Échange de produits",
                 f"L'emplacement {nouvel_emplacement_nom} contient déjà le produit {produit_cible.nom}.\n"
-                f"Voulez-vous échanger {self.produit_selectionne.nom} avec {produit_cible.nom} ?"
+                f"Voulez-vous échanger {produit_deplace.nom} avec {produit_cible.nom} ?"
             )
-            if confirmation:
-                success = self.controller.echanger_produits(
-                    self.controller.entrepots[self.entrepot_selectionne],
-                    emplacement_source,
-                    self.controller.entrepots[nouvel_entrepot_selectionne],
-                    emplacement_cible
+            if confirmation_initiale:
+                # Demande de confirmation supplémentaire
+                confirmation_finale = messagebox.askyesno(
+                    "Confirmation finale",
+                    f"Êtes-vous sûr de vouloir échanger {produit_deplace.nom} avec {produit_cible.nom} ?\n"
+                    f"Cette action ne peut pas être annulée."
                 )
-                if success:
-                    messagebox.showinfo("Succès", f"Échange effectué entre {self.emplacement_selectionne} et {nouvel_emplacement_nom}.")
-                    self.reset_selection()
-                    self.refresh_tree_view()
-                else:
-                    messagebox.showerror("Erreur", "L'échange de produits a échoué.")
+                if confirmation_finale:
+                    # Effectuer l'échange seulement après la deuxième confirmation
+                    success = self.controller.echanger_produits(
+                        self.controller.entrepots[ancien_entrepot],
+                        ancien_emplacement_obj,
+                        self.controller.entrepots[nouvel_entrepot_selectionne],
+                        nouvel_emplacement_obj
+                    )
+                    if success:
+                        print(f"Échange effectué entre {ancien_emplacement_obj.nom} et {nouvel_emplacement_nom}.")
+                        self.reset_selection()
+                        self.refresh_tree_view()
+                        self.emplacement_depart = None
+                    else:
+                        messagebox.showerror("Erreur", "L'échange de produits a échoué.")
 
 
     def reset_selection(self):
         """
         Réinitialise la sélection.
         """
+        if self.entry :
+            self.entry = False
+            self.reset_interface()
         # Vérifier si la réinitialisation est déjà en cours ou si on est déjà dans l'état neutre
         if self.resetting_selection:
             print("Réinitialisation déjà en cours, retour à la méthode.")
@@ -203,6 +257,8 @@ class View:
 
         # Effacer la sélection dans l'arborescence
         self.tree.selection_remove(self.tree.selection())  # Désélectionner tous les éléments
+        
+        # Réinitialiser l'interface avec la nouvelle logique
         self.reset_interface()
 
         # Réactiver les événements de sélection après la réinitialisation
@@ -211,12 +267,17 @@ class View:
         print("Fin de la réinitialisation de la sélection.")
         self.resetting_selection = False
 
+
     def reset_interface(self):
         """
-        Réinitialise l'interface.
+        Réinitialise l'interface en fonction de la sélection actuelle.
         """
-        self.btn_ajouter_produit.config(state=tk.DISABLED)
+        # Désactiver tous les boutons par défaut
         self.btn_deplacer_produit.config(state=tk.DISABLED)
+
+        self.btn_ajouter_produit.config(state=tk.NORMAL)  # Activer le bouton si l'emplacement est vide
+
+
 
     def afficher_arborescence(self):
         """
@@ -304,51 +365,77 @@ class View:
 
     def ajouter_produit(self):
         """
-        Fenêtre pop-up pour ajouter un produit.
+        Déclenche l'état d'ajout de produit et ouvre la fenêtre contextuelle.
         """
         if not self.entrepot_selectionne or not self.emplacement_selectionne:
-            messagebox.showerror("Erreur", "Veuillez sélectionner un emplacement vide.")
+            messagebox.showerror("Erreur", "Veuillez sélectionner un emplacement vide pour ajouter un produit.")
             return
 
-        # Fenêtre pop-up pour ajouter un produit
-        self.popup = tk.Toplevel()
-        self.popup.title(f"Ajouter un Produit à l'emplacement {self.emplacement_selectionne}")
+        # Changer l'état vers AddingProductState
+        self.context.set_state(AddingProductState())
 
+
+    def ouvrir_fenetre_ajout_produit(self):
+        """
+        Ouvre une fenêtre contextuelle pour ajouter les informations du produit.
+        """
+        self.popup = tk.Toplevel()
+        self.popup.title(f"Ajouter un Produit à l'emplacement {self.emplacement_selectionne} dans {self.entrepot_selectionne}")
+
+        # Labels et champs de saisie
         tk.Label(self.popup, text="Nom du produit:").grid(row=0, column=0)
         tk.Label(self.popup, text="Nom du client:").grid(row=1, column=0)
         tk.Label(self.popup, text="Description:").grid(row=2, column=0)
 
+        # Champ de texte pour le nom du produit
         self.nom_produit = tk.Entry(self.popup)
-        self.nom_client_produit = tk.Entry(self.popup)
-        self.description_produit = tk.Text(self.popup, height=5, width=40)  # Champ de texte plus grand pour la description
-
         self.nom_produit.grid(row=0, column=1)
-        self.nom_client_produit.grid(row=1, column=1)
+
+        # Menu déroulant pour sélectionner le client
+        self.client_produit = tk.StringVar(self.popup)
+        clients = list(self.controller.get_clients().keys())  # Récupérer les noms de tous les clients
+        self.menu_client = tk.OptionMenu(self.popup, self.client_produit, *clients)
+        self.menu_client.grid(row=1, column=1)
+
+        # Champ de texte pour la description
+        self.description_produit = tk.Text(self.popup, height=5, width=40)
         self.description_produit.grid(row=2, column=1)
 
+        # Bouton pour valider l'ajout du produit
         self.btn_ajouter = tk.Button(self.popup, text="Ajouter", command=self.valider_ajout_produit)
         self.btn_ajouter.grid(row=3, columnspan=2)
 
     def valider_ajout_produit(self):
         """
-        Valide l'ajout du produit.
+        Valide l'ajout du produit en utilisant les informations saisies et celles de l'état.
         """
         nom = self.nom_produit.get()
-        client_nom = self.nom_client_produit.get()
-        description = self.description_produit.get("1.0", tk.END).strip()  # Récupère tout le texte du champ Text
+        client_nom = self.client_produit.get()
+        description = self.description_produit.get("1.0", tk.END).strip()  # Récupère le texte du champ Text
 
-        if not self.entrepot_selectionne or not self.emplacement_selectionne:
-            messagebox.showerror("Erreur", "Veuillez sélectionner un emplacement vide.")
+        # Vérifier si tous les champs sont remplis
+        if not nom or not client_nom or not description:
+            messagebox.showerror("Erreur", "Tous les champs sont obligatoires.")
             return
 
-        produit = self.controller.ajouter_produit(nom, client_nom, description, self.entrepot_selectionne, self.emplacement_selectionne)
+        # Utiliser l'emplacement et l'entrepôt sauvegardés dans AddingProductState
+        if isinstance(self.context.state, AddingProductState):
+            entrepot_selectionne = self.context.state.entrepot_selectionne
+            emplacement_selectionne = self.context.state.emplacement_selectionne
 
-        if produit:
-            self.popup.destroy()
-            messagebox.showinfo("Succès", f"Produit {nom} ajouté à l'emplacement {self.emplacement_selectionne} dans {self.entrepot_selectionne}")
-            self.refresh_tree_view()  # Mettre à jour l'arborescence après l'ajout du produit
+            produit = self.controller.ajouter_produit(nom, client_nom, description, entrepot_selectionne, emplacement_selectionne)
+            
+            if produit:
+                self.popup.destroy()
+                messagebox.showinfo("Succès", f"Produit {nom} ajouté à l'emplacement {emplacement_selectionne} dans {entrepot_selectionne}")
+                self.refresh_tree_view()  # Mettre à jour l'arborescence après l'ajout du produit
+                self.reset_selection()  # Réinitialiser la sélection après l'ajout
+                self.context.set_state(NeutralState())  # Revenir à l'état neutre
+            else:
+                messagebox.showerror("Erreur", "L'ajout du produit a échoué. Vérifiez que le client et l'entrepôt existent.")
         else:
-            messagebox.showerror("Erreur", "Client ou Entrepôt invalide")
+            messagebox.showerror("Erreur", "L'état actuel n'est pas correct pour ajouter un produit.")
+
 
     def deplacer_produit(self):
         """
@@ -367,6 +454,8 @@ class View:
         """
         self.tree.selection_remove(self.tree.selection())  # Désélectionner tous les éléments
         self.afficher_arborescence()  # Réafficher l'arborescence pour refléter les changements
+
+
 
 if __name__ == "__main__":
     root = tk.Tk()

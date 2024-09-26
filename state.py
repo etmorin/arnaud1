@@ -45,7 +45,6 @@ class NeutralState(State):
     def exit_state(self, context):
         print("Sortie de l'état neutre.")
 
-
 class ProductSelectedState(State):
     """
     État où un produit est sélectionné.
@@ -56,6 +55,14 @@ class ProductSelectedState(State):
         context.handle_selection(selected_item)
 
     def handle_action(self, context):
+        # Sauvegarder l'emplacement de départ avant de passer en MovingProductState
+        context.view.emplacement_depart = {
+            'entrepot': context.view.entrepot_selectionne,
+            'emplacement': context.view.emplacement_selectionne,
+            'objet_emplacement': context.controller.entrepots[context.view.entrepot_selectionne].get_emplacement(context.view.emplacement_selectionne)
+        }
+        print(f"Emplacement de départ sauvegardé : {context.view.emplacement_depart['emplacement']} dans {context.view.emplacement_depart['entrepot']}")
+
         # Activer le mode de déplacement
         context.set_state(MovingProductState())
         context.view.activate_move_mode()
@@ -67,18 +74,20 @@ class ProductSelectedState(State):
     def exit_state(self, context):
         print("Sortie de l'état ProductSelectedState.")
 
-
 class MovingProductState(State):
     """
     État où le produit est en cours de déplacement.
     """
     def handle_selection(self, context, selected_item):
-        if context.view.is_empty_location(selected_item):
+        # Retirer la vérification de l'emplacement vide
+        # Vérifier que l'emplacement de départ est bien sauvegardé dans la Vue
+        if context.view.emplacement_depart:
+            # Clic pour sélectionner la destination
             context.view.confirm_move(selected_item)
             context.set_state(NeutralState())
         else:
-            print("L'emplacement sélectionné n'est pas vide.")
-
+            print("Erreur : Emplacement de départ non défini dans la Vue.")
+    
     def handle_action(self, context):
         # Pas d'autre action possible pendant le déplacement
         pass
@@ -89,3 +98,34 @@ class MovingProductState(State):
 
     def exit_state(self, context):
         print("Sortie de l'état MovingProductState.")
+
+
+
+
+class AddingProductState(State):
+    """
+    État où l'on ajoute un produit à un emplacement sélectionné.
+    """
+    def __init__(self):
+        # Sauvegarder les informations sur l'emplacement et l'entrepôt sélectionnés
+        self.entrepot_selectionne = None
+        self.emplacement_selectionne = None
+
+    def handle_selection(self, context, selected_item):
+        # Aucune action de sélection pendant l'ajout de produit
+        pass
+
+    def handle_action(self, context):
+        # Aucune autre action spécifique pendant l'ajout
+        pass
+
+    def enter_state(self, context):
+        print("Entrée dans l'état AddingProductState.")
+        # Sauvegarder les informations de l'emplacement et l'entrepôt sélectionnés
+        self.entrepot_selectionne = context.view.entrepot_selectionne
+        self.emplacement_selectionne = context.view.emplacement_selectionne
+        # Ouvrir la fenêtre contextuelle pour l'ajout de produit
+        context.view.ouvrir_fenetre_ajout_produit()
+
+    def exit_state(self, context):
+        print("Sortie de l'état AddingProductState.")

@@ -4,9 +4,10 @@ class SelectionContext:
     """
     Contexte pour gérer les états de sélection de produits.
     """
-    def __init__(self, view):
+    def __init__(self, view, controller):
         self.state = NeutralState()
         self.view = view
+        self.controller = controller  # Ajouter une référence au contrôleur
 
     def set_state(self, new_state):
         # Empêcher les transitions vers le même état

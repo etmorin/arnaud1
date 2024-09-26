@@ -93,14 +93,19 @@ class Controller:
         return False
 
     def ajouter_produit(self, nom, client_nom, description, entrepot_nom, emplacement_nom):
+        """
+        Ajoute un produit à un emplacement spécifique dans un entrepôt.
+        """
         if client_nom in self.clients and entrepot_nom in self.entrepots:
             # Incrémenter le compteur pour obtenir un nouvel ID unique
             self.incrementer_compteur()
             id_produit = f"prod-{self.compteur}"  # Créer un ID unique pour le produit
 
+            # Créer l'objet Produit
             produit = Produit(nom, client_nom, description, entrepot_nom, emplacement_nom)
             produit.id = id_produit  # Assigner l'ID unique au produit
 
+            # Enregistrer le produit dans Firebase
             produit_ref = db.reference('produits').child(id_produit)
             produit_ref.set({
                 'nom': nom,
@@ -112,12 +117,16 @@ class Controller:
 
             # Ajouter le produit à la liste en mémoire
             self.produits[id_produit] = produit
+
             # Assigner le produit à l'emplacement
             emplacement = self.entrepots[entrepot_nom].get_emplacement(emplacement_nom)
             if emplacement:
-                emplacement.assigner_produit(produit)
+                emplacement.assigner_produit(produit)  # Mettre à jour l'objet Emplacement
+            else:
+                print(f"Erreur : L'emplacement {emplacement_nom} n'existe pas dans l'entrepôt {entrepot_nom}.")
             return produit
         return None
+
 
     def deplacer_produit(self, ancien_entrepot, ancien_emplacement_obj, nouvel_entrepot, nouvel_emplacement_obj):
         """
@@ -159,13 +168,13 @@ class Controller:
         print(f"Succès : Produit {produit.nom} déplacé de {ancien_emplacement_obj.nom} ({ancien_entrepot}) vers {nouvel_emplacement_obj.nom} ({nouvel_entrepot}).")
         return True
     
-
     def echanger_produits(self, entrepot_source, emplacement_source, entrepot_cible, emplacement_cible):
         """
         Échange les produits entre deux emplacements.
         """
+        # Vérifier que les deux emplacements contiennent des produits
         if not emplacement_source.produit or not emplacement_cible.produit:
-            print("Erreur : Les deux emplacements doivent contenir des produits.")
+            print("Erreur : Les deux emplacements doivent contenir des produits pour un échange.")
             return False
 
         # Sauvegarder les produits temporairement
@@ -182,18 +191,18 @@ class Controller:
         emplacement_cible.produit.emplacement = emplacement_cible.nom
 
         # Mettre à jour Firebase ou la base de données ici si nécessaire
-        # Par exemple:
         db.reference('produits').child(emplacement_source.produit.id).update({
-             'entrepot_nom': entrepot_source.nom,
-             'emplacement': emplacement_source.nom
-         })
+            'entrepot_nom': entrepot_source.nom,
+            'emplacement': emplacement_source.nom
+        })
         db.reference('produits').child(emplacement_cible.produit.id).update({
-             'entrepot_nom': entrepot_cible.nom,
-             'emplacement': emplacement_cible.nom
-         })
+            'entrepot_nom': entrepot_cible.nom,
+            'emplacement': emplacement_cible.nom
+        })
 
-        print(f"Échange effectué entre {emplacement_source.nom} et {emplacement_cible.nom}")
+        print(f"Échange effectué entre {emplacement_source.nom} et {emplacement_cible.nom}.")
         return True
+
 
 
     def get_entrepots(self):
