@@ -63,7 +63,7 @@ class Entrepot:
         for etage in range(self.nombre_etages):
             for num in range(self.emplacements_par_etage):
                 nom_emplacement = f"{alphabet[etage]}{num + 1}"
-                emplacements[nom_emplacement] = Emplacement(nom_emplacement)
+                emplacements[nom_emplacement] = Emplacement(nom_emplacement,self.nom)
         return emplacements
 
     def get_emplacement(self, nom_emplacement):
@@ -75,8 +75,9 @@ class Entrepot:
 
 
 class Emplacement:
-    def __init__(self, nom, produit=None):
+    def __init__(self, nom, entrepot, produit=None):
         self.nom = nom  # Nom de l'emplacement (ex: "A1")
+        self.entrepot = entrepot
         self.produit = produit  # Produit assigné à l'emplacement, None s'il est vide
 
     def est_vide(self):

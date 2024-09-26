@@ -1,7 +1,5 @@
-# Controller.py
-
-from model import Produit, Entrepot, Client, Emplacement  # Assurez-vous que toutes les classes sont importées
-from firebase_config import db
+from model import Produit, Entrepot, Client, Emplacement  # Importer les classes du modèle
+from firebase_config import db  # Importer la configuration de Firebase
 
 class Controller:
     def __init__(self):
@@ -10,9 +8,9 @@ class Controller:
         self.produits = {}
         self.compteur = 0
         self.initialiser_compteur()
-        self.recuperer_entrepots_firebase()
-        self.recuperer_clients_firebase()
-        self.recuperer_produits_firebase()
+        self.recuperer_donnees('entrepots', Entrepot, self.entrepots)
+        self.recuperer_donnees('clients', Client, self.clients)
+        self.recuperer_donnees('produits', Produit, self.produits, additional_processing=self.assigner_produit_emplacement)
 
     def initialiser_compteur(self):
         compteur_ref = db.reference('compteur')
@@ -28,36 +26,47 @@ class Controller:
         self.compteur += 1
         compteur_ref.set(self.compteur)
 
-    def recuperer_entrepots_firebase(self):
-        entrepots_ref = db.reference('entrepots')
-        entrepots_data = entrepots_ref.get()
-        if entrepots_data:
-            for nom, data in entrepots_data.items():
-                self.entrepots[nom] = Entrepot(
-                    nom, data['commune'], data['nombre_etages'], data['emplacements_par_etage']
-                )
+    def recuperer_donnees(self, reference, classe, stockage, additional_processing=None):
+        ref = db.reference(reference)
+        data = ref.get()
+        if data:
+            for key, valeur in data.items():
+                if classe == Entrepot:
+                    instance = classe(
+                        nom=key,
+                        commune=valeur['commune'],
+                        nombre_etages=valeur['nombre_etages'],
+                        emplacements_par_etage=valeur['emplacements_par_etage']
+                    )
+                elif classe == Client:
+                    instance = classe(nom=key)
+                elif classe == Produit:
+                    instance = classe(
+                        nom=valeur['nom'], 
+                        client=valeur['client_nom'], 
+                        description=valeur['description'],
+                        entrepot=valeur['entrepot_nom'], 
+                        emplacement=valeur['emplacement'],
+                        id_produit=key
+                    )
+                else:
+                    instance = classe(**valeur)
 
-    def recuperer_clients_firebase(self):
-        clients_ref = db.reference('clients')
-        clients_data = clients_ref.get()
-        if clients_data:
-            for nom, data in clients_data.items():
-                self.clients[nom] = Client(nom)
+                stockage[key] = instance
 
-    def recuperer_produits_firebase(self):
-        produits_ref = db.reference('produits')
-        produits_data = produits_ref.get()
-        if produits_data:
-            for produit_id, data in produits_data.items():
-                produit = Produit(
-                    data['nom'], data['client_nom'], data['description'],
-                    data['entrepot_nom'], data['emplacement']
-                )
-                self.produits[produit_id] = produit
-                # Assigner le produit à son emplacement dans l'entrepôt
-                emplacement = self.entrepots[data['entrepot_nom']].get_emplacement(data['emplacement'])
-                if emplacement:
-                    emplacement.assigner_produit(produit)
+                if additional_processing:
+                    additional_processing(instance, valeur)
+
+    def assigner_produit_emplacement(self, produit, valeur):
+        """
+        Assigne le produit à son emplacement dans l'entrepôt.
+        """
+        entrepot_nom = valeur['entrepot_nom']
+        emplacement_nom = valeur['emplacement']
+        if entrepot_nom in self.entrepots:
+            emplacement = self.entrepots[entrepot_nom].get_emplacement(emplacement_nom)
+            if emplacement:
+                emplacement.assigner_produit(produit)
 
     def ajouter_entrepot(self, nom, commune, nombre_etages, emplacements_par_etage):
         if nom not in self.entrepots:
@@ -110,52 +119,80 @@ class Controller:
             return produit
         return None
 
-    def est_emplacement_vide(self, entrepot_nom, emplacement_nom):
-        emplacement = self.entrepots[entrepot_nom].get_emplacement(emplacement_nom)
-        if emplacement:
-            return emplacement.est_vide()
-        return False
-
     def deplacer_produit(self, ancien_entrepot, ancien_emplacement_obj, nouvel_entrepot, nouvel_emplacement_obj):
-        # Assurer que les objets Emplacement sont valides
+        """
+        Déplace un produit d'un emplacement à un autre.
+        """
         if not ancien_emplacement_obj or not nouvel_emplacement_obj:
             print("Erreur : Les objets d'emplacement ne sont pas valides.")
             return False
 
-        # Vérifier si l'emplacement d'origine contient bien un produit
-        if ancien_emplacement_obj.est_vide():
+        produit = ancien_emplacement_obj.produit
+        if produit is None:
             print(f"Erreur : L'emplacement {ancien_emplacement_obj.nom} dans l'entrepôt {ancien_entrepot} est vide.")
             return False
 
-        produit = ancien_emplacement_obj.produit
-
-        # Vérifier si le nouvel emplacement est vide
-        if not nouvel_emplacement_obj.est_vide():
-            print(f"Erreur : L'emplacement {nouvel_emplacement_obj.nom} dans l'entrepôt {nouvel_entrepot} est déjà occupé.")
+        if produit.entrepot != ancien_entrepot or produit.emplacement != ancien_emplacement_obj.nom:
+            print(f"Erreur : Le produit {produit.nom} n'est pas actuellement à l'emplacement {ancien_emplacement_obj.nom} dans l'entrepôt {ancien_entrepot}.")
             return False
 
-        # Déplacement du produit
-        nouvel_emplacement_obj.assigner_produit(produit)  # Assigner le produit au nouvel emplacement
-        ancien_emplacement_obj.liberer()  # Libérer l'ancien emplacement
-        print(f"Produit {produit.nom} libéré de l'emplacement {ancien_emplacement_obj.nom} ({ancien_entrepot})")
+        if not nouvel_emplacement_obj.est_vide():
+            print(f"Erreur : L'emplacement {nouvel_emplacement_obj.nom} dans l'entrepôt {nouvel_emplacement_obj.nom} est déjà occupé.")
+            return False
 
-        # Mise à jour de l'emplacement du produit
-        produit.entrepot = nouvel_entrepot  # Mettre à jour l'entrepôt du produit
-        produit.emplacement = nouvel_emplacement_obj.nom  # Mettre à jour l'emplacement du produit
-        print(f"Produit {produit.nom} mis à jour avec le nouvel emplacement {produit.emplacement} dans l'entrepôt {produit.entrepot}")
+        nouvel_emplacement_obj.assigner_produit(produit)
+        ancien_emplacement_obj.liberer()
 
-        # Mettre à jour Firebase
+        produit.entrepot = nouvel_entrepot
+        produit.emplacement = nouvel_emplacement_obj.nom
+
         try:
             produit_id = [key for key, value in self.produits.items() if value.nom == produit.nom][0]
             db.reference('produits').child(produit_id).update({
                 'entrepot_nom': nouvel_entrepot,
-                'emplacement': nouvel_emplacement_obj.nom  # Utiliser le nom de l'emplacement pour la mise à jour dans Firebase
+                'emplacement': nouvel_emplacement_obj.nom
             })
         except IndexError:
             print("Erreur : Produit non trouvé dans le dictionnaire self.produits.")
             return False
 
         print(f"Succès : Produit {produit.nom} déplacé de {ancien_emplacement_obj.nom} ({ancien_entrepot}) vers {nouvel_emplacement_obj.nom} ({nouvel_entrepot}).")
+        return True
+    
+
+    def echanger_produits(self, entrepot_source, emplacement_source, entrepot_cible, emplacement_cible):
+        """
+        Échange les produits entre deux emplacements.
+        """
+        if not emplacement_source.produit or not emplacement_cible.produit:
+            print("Erreur : Les deux emplacements doivent contenir des produits.")
+            return False
+
+        # Sauvegarder les produits temporairement
+        produit_temp = emplacement_source.produit
+
+        # Échanger les produits
+        emplacement_source.assigner_produit(emplacement_cible.produit)
+        emplacement_cible.assigner_produit(produit_temp)
+
+        # Mettre à jour les informations des produits
+        emplacement_source.produit.entrepot = entrepot_source.nom
+        emplacement_source.produit.emplacement = emplacement_source.nom
+        emplacement_cible.produit.entrepot = entrepot_cible.nom
+        emplacement_cible.produit.emplacement = emplacement_cible.nom
+
+        # Mettre à jour Firebase ou la base de données ici si nécessaire
+        # Par exemple:
+        db.reference('produits').child(emplacement_source.produit.id).update({
+             'entrepot_nom': entrepot_source.nom,
+             'emplacement': emplacement_source.nom
+         })
+        db.reference('produits').child(emplacement_cible.produit.id).update({
+             'entrepot_nom': entrepot_cible.nom,
+             'emplacement': emplacement_cible.nom
+         })
+
+        print(f"Échange effectué entre {emplacement_source.nom} et {emplacement_cible.nom}")
         return True
 
 
