@@ -1,5 +1,6 @@
 from model import Produit, Entrepot, Client, Emplacement  # Importer les classes du modèle
 from firebase_config import db  # Importer la configuration de Firebase
+import datetime
 
 class Controller:
     def __init__(self):
@@ -93,26 +94,24 @@ class Controller:
         return False
 
     def ajouter_produit(self, nom, client_nom, description, entrepot_nom, emplacement_nom):
-        """
-        Ajoute un produit à un emplacement spécifique dans un entrepôt.
-        """
         if client_nom in self.clients and entrepot_nom in self.entrepots:
             # Incrémenter le compteur pour obtenir un nouvel ID unique
             self.incrementer_compteur()
             id_produit = f"prod-{self.compteur}"  # Créer un ID unique pour le produit
 
-            # Créer l'objet Produit
+            # Créer un produit avec la date actuelle
             produit = Produit(nom, client_nom, description, entrepot_nom, emplacement_nom)
             produit.id = id_produit  # Assigner l'ID unique au produit
 
-            # Enregistrer le produit dans Firebase
+            # Enregistrer le produit dans Firebase, incluant la date d'entrée
             produit_ref = db.reference('produits').child(id_produit)
             produit_ref.set({
                 'nom': nom,
                 'client_nom': client_nom,
                 'description': description,
                 'entrepot_nom': entrepot_nom,
-                'emplacement': emplacement_nom
+                'emplacement': emplacement_nom,
+                'date_entree': produit.date.strftime('%Y-%m-%d')  # Format de la date
             })
 
             # Ajouter le produit à la liste en mémoire
@@ -121,9 +120,8 @@ class Controller:
             # Assigner le produit à l'emplacement
             emplacement = self.entrepots[entrepot_nom].get_emplacement(emplacement_nom)
             if emplacement:
-                emplacement.assigner_produit(produit)  # Mettre à jour l'objet Emplacement
-            else:
-                print(f"Erreur : L'emplacement {emplacement_nom} n'existe pas dans l'entrepôt {entrepot_nom}.")
+                emplacement.assigner_produit(produit)
+            
             return produit
         return None
 
@@ -202,6 +200,88 @@ class Controller:
 
         print(f"Échange effectué entre {emplacement_source.nom} et {emplacement_cible.nom}.")
         return True
+
+    def editer_produit(self, produit_id, nom, description):
+        """
+        Met à jour un produit dans la base de données et en mémoire.
+        """
+        if produit_id in self.produits:
+            produit = self.produits[produit_id]
+            produit.nom = nom
+            produit.description = description
+
+            # Mettre à jour Firebase
+            produit_ref = db.reference('produits').child(produit_id)
+            produit_ref.update({
+                'nom': nom,
+                'description': description
+            })
+
+            return True
+        return False
+    
+    def editer_entrepot(self, nom_actuel, nouveau_nom, commune, nombre_etages, emplacements_par_etage):
+        """
+        Met à jour un entrepôt dans la base de données et en mémoire.
+        """
+        if nom_actuel in self.entrepots:
+            entrepot = self.entrepots[nom_actuel]
+            entrepot.nom = nouveau_nom
+            entrepot.commune = commune
+            entrepot.nombre_etages = nombre_etages
+            entrepot.emplacements_par_etage = emplacements_par_etage
+
+            # Mettre à jour Firebase
+            entrepot_ref = db.reference('entrepots').child(nom_actuel)
+            entrepot_ref.update({
+                'nom': nouveau_nom,
+                'commune': commune,
+                'nombre_etages': nombre_etages,
+                'emplacements_par_etage': emplacements_par_etage
+            })
+
+            return True
+        return False
+
+    import datetime
+
+    def supprimer_produit(self, id_produit):
+        if id_produit in self.produits:
+            produit = self.produits[id_produit]
+            
+            # Ajouter la date de départ
+            date_depart = datetime.datetime.now().strftime('%Y-%m-%d')
+            
+            # Archiver le produit dans 'produits_supprimes'
+            produit_archive = {
+                'nom': produit.nom,
+                'client_nom': produit.client,
+                'description': produit.description,
+                'entrepot_nom': produit.entrepot,
+                'emplacement': produit.emplacement,
+                'date_entree': produit.date.strftime('%Y-%m-%d'),
+                'date_depart': date_depart  # Ajouter la date de départ
+            }
+            
+            # Enregistrer dans la collection d'archives
+            archive_ref = db.reference('produits_supprimes').child(id_produit)
+            archive_ref.set(produit_archive)
+            
+            # Supprimer le produit de la collection principale
+            produit_ref = db.reference('produits').child(id_produit)
+            produit_ref.delete()
+            
+            # Retirer de la liste en mémoire
+            del self.produits[id_produit]
+            
+            # Libérer l'emplacement dans l'entrepôt
+            emplacement = self.entrepots[produit.entrepot].get_emplacement(produit.emplacement)
+            if emplacement:
+                emplacement.liberer()
+
+            print(f"Produit {produit.nom} supprimé et archivé avec succès.")
+        else:
+            print("Produit non trouvé.")
 
 
 

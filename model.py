@@ -14,6 +14,7 @@ class Produit:
         self.entrepot = entrepot
         self.emplacement = emplacement
         self.date = datetime.datetime.now()
+        self.date_depart = None
 
     def generate_qr_code(self):
         # Générer le QR code avec l'ID du produit comme contenu
@@ -93,6 +94,8 @@ class Client:
     def __init__(self, nom):
         self.nom = nom
         self.historique = []
+        self.adresse = None
+        self.nom_societe = None
 
     def ajouter_au_historique(self, produit):
         self.historique.append(produit)

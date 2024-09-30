@@ -21,22 +21,18 @@ class State(ABC):
     def exit_state(self, context):
         pass
 
-
 class NeutralState(State):
-    """
-    État neutre : aucune action spécifique en cours.
-    """
     def handle_selection(self, context, selected_item):
-        # Gérer la sélection d'un élément dans l'état neutre
-        if context.view.is_product_selected(selected_item):
-            context.set_state(ProductSelectedState())
-            context.view.update_interface_for_selection(selected_item)
+        if context.view.is_empty_location(selected_item):
+            print("NeutralState : Emplacement vide sélectionné. On reste en NeutralState.")
         else:
-            context.view.reset_selection()
+            print("NeutralState : Produit sélectionné. Passage à ProductSelectedState.")
+            context.set_state(ProductSelectedState())
+            context.state.handle_selection(context, selected_item)
 
     def handle_action(self, context):
-        # Aucune action spécifique en état neutre
-        pass
+        # Pas d'action spécifique à cet état
+        print("NeutralState : Aucune action à gérer dans cet état.")
 
     def enter_state(self, context):
         print("Entrée dans l'état neutre.")
@@ -49,23 +45,19 @@ class ProductSelectedState(State):
     """
     État où un produit est sélectionné.
     """
+
     def handle_selection(self, context, selected_item):
-        # Changer de sélection : revenir à l'état neutre si la sélection change
-        context.set_state(NeutralState())
-        context.handle_selection(selected_item)
+        # On ne change pas d'état ici, on reste en ProductSelectedState
+        if context.view.is_product_selected(selected_item):
+            print("Produit sélectionné. Rester dans ProductSelectedState.")
+        else:
+            # Si l'utilisateur sélectionne un emplacement vide, revenir à l'état neutre
+            context.set_state(NeutralState())
 
     def handle_action(self, context):
-        # Sauvegarder l'emplacement de départ avant de passer en MovingProductState
-        context.view.emplacement_depart = {
-            'entrepot': context.view.entrepot_selectionne,
-            'emplacement': context.view.emplacement_selectionne,
-            'objet_emplacement': context.controller.entrepots[context.view.entrepot_selectionne].get_emplacement(context.view.emplacement_selectionne)
-        }
-        print(f"Emplacement de départ sauvegardé : {context.view.emplacement_depart['emplacement']} dans {context.view.emplacement_depart['entrepot']}")
-
-        # Activer le mode de déplacement
+        # L'action "Déplacer Produit" déclenche le passage à MovingProductState
+        print("Passage à MovingProductState.")
         context.set_state(MovingProductState())
-        context.view.activate_move_mode()
 
     def enter_state(self, context):
         print("Entrée dans l'état ProductSelectedState.")
@@ -76,29 +68,32 @@ class ProductSelectedState(State):
 
 class MovingProductState(State):
     """
-    État où le produit est en cours de déplacement.
+    État où un produit est en cours de déplacement.
     """
+
     def handle_selection(self, context, selected_item):
-        # Retirer la vérification de l'emplacement vide
-        # Vérifier que l'emplacement de départ est bien sauvegardé dans la Vue
-        if context.view.emplacement_depart:
-            # Clic pour sélectionner la destination
-            context.view.confirm_move(selected_item)
+        """
+        Gère la sélection du nouvel emplacement où le produit doit être déplacé.
+        """
+        if context.view.is_empty_location(selected_item):
+            # Notifie la vue de déplacer le produit vers un emplacement vide
+            print("Emplacement vide sélectionné. Déplacement du produit.")
+            context.view.confirm_move(selected_item)  # Effectuer le déplacement du produit
+            # Après le déplacement, on peut revenir à NeutralState
             context.set_state(NeutralState())
         else:
-            print("Erreur : Emplacement de départ non défini dans la Vue.")
-    
+            # Demande à la vue de gérer l'échange avec confirmation
+            produit_cible = context.view.get_produit_at(selected_item)  # Récupérer le produit à l'emplacement sélectionné
+            context.view.confirmer_echange(produit_cible, selected_item)
+
     def handle_action(self, context):
-        # Pas d'autre action possible pendant le déplacement
-        pass
+        print("MovingProductState : Aucune action directe à ce stade.")
 
     def enter_state(self, context):
-        print("Entrée dans l'état MovingProductState.")
-        context.view.update_interface_for_moving_product()
+        print("Entrée dans l'état MovingProductState. Sélectionnez un emplacement pour déplacer le produit.")
 
     def exit_state(self, context):
         print("Sortie de l'état MovingProductState.")
-
 
 
 
@@ -129,3 +124,30 @@ class AddingProductState(State):
 
     def exit_state(self, context):
         print("Sortie de l'état AddingProductState.")
+
+class ProductDisplayPhase:
+    pass
+
+class EditPhase:
+    pass
+
+class NothingSelectedState(State):
+    """
+    État où aucun produit ou emplacement n'est sélectionné.
+    Désactive tous les boutons sauf "Ajouter Entrepôt" et "Ajouter Client".
+    """
+
+    def handle_selection(self, context, selected_item):
+        # Aucun produit ou emplacement sélectionné, rester dans NothingSelectedState
+        print("Rien n'est sélectionné. Aucune action possible.")
+    
+    def handle_action(self, context):
+        # Désactiver toutes les actions dans cet état
+        print("Aucune action possible dans l'état NothingSelected.")
+
+    def enter_state(self, context):
+        print("Entrée dans l'état NothingSelected.")
+        context.view.update_interface_for_nothing_selected()
+
+    def exit_state(self, context):
+        print("Sortie de l'état NothingSelected.")
