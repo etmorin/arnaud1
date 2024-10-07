@@ -91,11 +91,11 @@ class Emplacement:
         self.produit = None
 
 class Client:
-    def __init__(self, nom):
+    def __init__(self, nom, adresse = None, nom_societe = None):
         self.nom = nom
         self.historique = []
-        self.adresse = None
-        self.nom_societe = None
+        self.adresse = adresse
+        self.nom_societe = nom_societe
 
     def ajouter_au_historique(self, produit):
         self.historique.append(produit)

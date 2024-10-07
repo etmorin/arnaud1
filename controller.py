@@ -82,16 +82,47 @@ class Controller:
             return True
         return False
 
-    def ajouter_client(self, nom):
+    def ajouter_client(self, nom, adresse, nom_societe):
         if nom not in self.clients:
-            client = Client(nom)
+            client = Client(nom, adresse, nom_societe)  # Passer l'adresse et le nom de la société
             self.clients[nom] = client
             # Ajouter à Firebase
             db.reference('clients').child(nom).set({
-                'nom': nom
+                'nom': nom,
+                'adresse': adresse,
+                'nom_societe': nom_societe
             })
             return True
         return False
+
+    def editer_client(self, nom_client_initial, nouveau_nom, nouvelle_adresse, nouveau_nom_societe):
+        """
+        Met à jour les informations d'un client.
+        """
+        if nom_client_initial in self.clients:
+            client = self.clients[nom_client_initial]
+
+            # Mettre à jour les attributs du client
+            client.nom = nouveau_nom
+            client.adresse = nouvelle_adresse
+            client.nom_societe = nouveau_nom_societe
+
+            # Mettre à jour Firebase ou la base de données si nécessaire
+            db.reference('clients').child(nom_client_initial).update({
+                'nom': nouveau_nom,
+                'adresse': nouvelle_adresse,
+                'nom_societe': nouveau_nom_societe
+            })
+
+            # Si le nom du client a changé, mettre à jour le dictionnaire des clients
+            if nouveau_nom != nom_client_initial:
+                del self.clients[nom_client_initial]
+                self.clients[nouveau_nom] = client
+
+            return True
+
+        return False
+
 
     def ajouter_produit(self, nom, client_nom, description, entrepot_nom, emplacement_nom):
         if client_nom in self.clients and entrepot_nom in self.entrepots:

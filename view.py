@@ -44,6 +44,11 @@ class View:
         self.btn_supprimer_produit.grid(row=0, column=5, padx=5)
         self.btn_supprimer_produit.config(state=tk.DISABLED)
 
+        # Bouton "Clients" sur une nouvelle ligne, en dessous des autres boutons
+        self.btn_clients = tk.Button(action_frame, text="Clients", command=self.ouvrir_fenetre_clients)
+        self.btn_clients.grid(row=1, column=0, columnspan=6, pady=10)  # Placé sur une nouvelle ligne avec un padding vertical
+
+
         # Cadre gauche : Arborescence
         self.left_frame = tk.Frame(self.root)
         self.left_frame.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
@@ -123,12 +128,21 @@ class View:
             if emplacement and not emplacement.est_vide():
                 self.produit_selectionne = emplacement.produit  # Mettre à jour le produit sélectionné
                 print(f"Produit sélectionné : {self.produit_selectionne.nom}")
+                
+                # Appeler la méthode pour afficher les détails du produit
+                self.afficher_details_produit(self.produit_selectionne)
             else:
                 self.produit_selectionne = None  # Aucune sélection de produit
                 print(f"Emplacement vide sélectionné : {emplacement_nom} dans {self.entrepot_selectionne}")
+                # Si l'emplacement est vide, effacer les détails affichés
+                self.details_label.config(text="Aucun produit sélectionné.")
+        else:
+            # Si aucun produit ou emplacement valide n'est sélectionné, réinitialiser la zone de détails
+            self.details_label.config(text="Aucun produit sélectionné.")
 
         # Déléguer la gestion de la sélection au contexte d'état
         self.context.handle_selection(selected_item_id)
+
 
 
     def afficher_details_produit(self, produit):
@@ -434,20 +448,110 @@ class View:
         self.nom_client = tk.Entry(self.popup)
         self.nom_client.grid(row=0, column=1)
 
+        tk.Label(self.popup, text="Adresse:").grid(row=1, column=0)
+        self.adresse_client = tk.Entry(self.popup)
+        self.adresse_client.grid(row=1, column=1)
+
+        tk.Label(self.popup, text="Nom de la société:").grid(row=2, column=0)
+        self.nom_societe_client = tk.Entry(self.popup)
+        self.nom_societe_client.grid(row=2, column=1)
+
         self.btn_ajouter = tk.Button(self.popup, text="Ajouter", command=self.valider_ajout_client)
-        self.btn_ajouter.grid(row=1, columnspan=2)
+        self.btn_ajouter.grid(row=3, columnspan=2)
 
     def valider_ajout_client(self):
         """
-        Valide l'ajout du client dans la base de données.
+        Valide l'ajout du client avec nom, adresse et nom de société.
         """
         nom = self.nom_client.get()
+        adresse = self.adresse_client.get()
+        nom_societe = self.nom_societe_client.get()
 
-        if self.controller.ajouter_client(nom):
+        if self.controller.ajouter_client(nom, adresse, nom_societe):
             self.popup.destroy()
-            messagebox.showinfo("Succès", f"Client {nom} ajouté")
+            messagebox.showinfo("Succès", f"Client {nom} ajouté avec succès")
         else:
-            messagebox.showerror("Erreur", "Client déjà existant")
+            messagebox.showerror("Erreur", "Un client avec ce nom existe déjà.")
+
+    def ouvrir_fenetre_clients(self):
+        """
+        Ouvre une fenêtre avec la liste des clients et permet de les modifier.
+        """
+        self.popup_clients = tk.Toplevel()
+        self.popup_clients.title("Liste des Clients")
+
+        # Créer un tableau pour afficher les clients
+        self.tree_clients = ttk.Treeview(self.popup_clients, columns=("Nom", "Adresse", "Nom de Société"), show='headings')
+        self.tree_clients.heading("Nom", text="Nom")
+        self.tree_clients.heading("Adresse", text="Adresse")
+        self.tree_clients.heading("Nom de Société", text="Nom de Société")
+
+        # Remplir le tableau avec les clients actuels
+        for nom, client in self.controller.get_clients().items():
+            self.tree_clients.insert("", "end", values=(client.nom, client.adresse, client.nom_societe))
+
+        self.tree_clients.pack(padx=10, pady=10)
+
+        # Bouton pour éditer le client sélectionné
+        self.btn_modifier_client = tk.Button(self.popup_clients, text="Modifier", command=self.modifier_client)
+        self.btn_modifier_client.pack(padx=10, pady=10)
+
+    def modifier_client(self):
+        """
+        Ouvre une fenêtre pour modifier les informations du client sélectionné.
+        """
+        selected_item = self.tree_clients.selection()
+        if not selected_item:
+            messagebox.showerror("Erreur", "Veuillez sélectionner un client.")
+            return
+
+        client_values = self.tree_clients.item(selected_item, 'values')
+        nom_client = client_values[0]
+
+        # Récupérer le client à partir du contrôleur
+        client = self.controller.get_clients()[nom_client]
+
+        # Ouvrir une fenêtre pour modifier les informations du client
+        self.popup_modifier_client = tk.Toplevel()
+        self.popup_modifier_client.title(f"Modifier le Client : {client.nom}")
+
+        tk.Label(self.popup_modifier_client, text="Nom:").grid(row=0, column=0)
+        self.nom_client_edit = tk.Entry(self.popup_modifier_client)
+        self.nom_client_edit.grid(row=0, column=1)
+        self.nom_client_edit.insert(0, client.nom)
+
+        tk.Label(self.popup_modifier_client, text="Adresse:").grid(row=1, column=0)
+        self.adresse_client_edit = tk.Entry(self.popup_modifier_client)
+        self.adresse_client_edit.grid(row=1, column=1)
+        self.adresse_client_edit.insert(0, client.adresse)
+
+        tk.Label(self.popup_modifier_client, text="Nom de Société:").grid(row=2, column=0)
+        self.nom_societe_edit = tk.Entry(self.popup_modifier_client)
+        self.nom_societe_edit.grid(row=2, column=1)
+        self.nom_societe_edit.insert(0, client.nom_societe)
+
+        self.btn_sauvegarder_client = tk.Button(self.popup_modifier_client, text="Sauvegarder", command=lambda: self.sauvegarder_modifications_client(nom_client))
+        self.btn_sauvegarder_client.grid(row=3, columnspan=2, pady=10)
+
+    def sauvegarder_modifications_client(self, nom_client_initial):
+        """
+        Sauvegarde les modifications effectuées sur un client.
+        """
+        nouveau_nom = self.nom_client_edit.get()
+        nouvelle_adresse = self.adresse_client_edit.get()
+        nouveau_nom_societe = self.nom_societe_edit.get()
+
+        # Appeler la méthode du contrôleur pour mettre à jour le client
+        success = self.controller.editer_client(nom_client_initial, nouveau_nom, nouvelle_adresse, nouveau_nom_societe)
+
+        if success:
+            self.popup_modifier_client.destroy()
+            messagebox.showinfo("Succès", "Le client a été mis à jour avec succès.")
+            self.refresh_tree_clients()  # Rafraîchir la liste des clients
+        else:
+            messagebox.showerror("Erreur", "Une erreur est survenue lors de la mise à jour du client.")
+
+
 
     def ajouter_produit(self):
         """
