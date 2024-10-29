@@ -1,0 +1,14 @@
+
+Il faut encore:
+
+-faire en sorte que les bons d'entrées s'ouvrent automatiquement
+-les sauvegarder peut etre dans un fichier séparé
+-pofiner la mise en page et les données affichées (l'adresse ne s'affiche pas encore par exemple)
+-ajouter le lieu de chargement (pas trop pigé)
+
+-ajouter les photos, ajouter la date de modification
+
+-ajouter le login et password quand les bons seront ok via firebase je pense
+
+-test, créer executable, envoyer à arnaud
+

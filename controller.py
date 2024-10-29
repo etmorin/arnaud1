@@ -142,7 +142,7 @@ class Controller:
                 'description': description,
                 'entrepot_nom': entrepot_nom,
                 'emplacement': emplacement_nom,
-                'date_entree': produit.date.strftime('%Y-%m-%d')  # Format de la date
+                'date_entree': produit.date_entree.strftime('%Y-%m-%d')  # Format de la date
             })
 
             # Ajouter le produit à la liste en mémoire
@@ -290,7 +290,7 @@ class Controller:
                 'description': produit.description,
                 'entrepot_nom': produit.entrepot,
                 'emplacement': produit.emplacement,
-                'date_entree': produit.date.strftime('%Y-%m-%d'),
+                'date_entree': produit.date_entree.strftime('%Y-%m-%d'),
                 'date_depart': date_depart  # Ajouter la date de départ
             }
             
@@ -314,7 +314,15 @@ class Controller:
         else:
             print("Produit non trouvé.")
 
-
+    def recuperer_date_entree(self, produit_id):
+        """
+        Récupère la date d'entrée du produit depuis Firebase.
+        """
+        produit_data = db.reference(f"produits/{produit_id}").get()
+        if produit_data:
+            # Retourner la date d'entrée stockée dans Firebase
+            return produit_data.get('date_entree', 'Date non disponible')
+        return 'Date non disponible'
 
     def get_entrepots(self):
         return self.entrepots

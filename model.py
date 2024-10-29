@@ -13,8 +13,9 @@ class Produit:
         self.qr_code = self.generate_qr_code()
         self.entrepot = entrepot
         self.emplacement = emplacement
-        self.date = datetime.datetime.now()
+        self.date_entree = datetime.datetime.now()
         self.date_depart = None
+        self.date_modif = None
 
     def generate_qr_code(self):
         # Générer le QR code avec l'ID du produit comme contenu
@@ -42,13 +43,16 @@ class Produit:
         return self.id
     
     def get_date(self):
-        return self.date
+        return self.date_entree
+    
+    def get_date_depart(self):
+        return datetime.datetime.now()
     
     def get_description(self):
         return self.description
     
     def update_date(self):
-        self.date = datetime.datetime.now()
+        self.date_modif = datetime.datetime.now()
 
 class Entrepot:
     def __init__(self, nom, commune, nombre_etages, emplacements_par_etage):

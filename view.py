@@ -1,4 +1,6 @@
 import tkinter as tk
+from tkinter import simpledialog
+from bons import generate_bon_entree, generate_bon_sortie
 from tkinter import ttk, messagebox
 from controller import Controller
 from selection_context import SelectionContext
@@ -35,6 +37,10 @@ class View:
         self.btn_deplacer_produit = tk.Button(action_frame, text="Déplacer Produit", command=self.deplacer_produit)
         self.btn_deplacer_produit.grid(row=0, column=3, padx=5)
         self.btn_deplacer_produit.config(state=tk.DISABLED)
+
+        self.btn_bon_entree = tk.Button(action_frame, text="Bon d'entrée", command=self.generer_bon_entree)
+        self.btn_bon_entree.grid(row=0, column=6, padx=5)
+        self.btn_bon_entree.config(state=tk.DISABLED)
 
         self.btn_edit = tk.Button(action_frame, text="Edit", command=self.editer_element)
         self.btn_edit.grid(row=0, column=4, padx=5)
@@ -143,18 +149,96 @@ class View:
         # Déléguer la gestion de la sélection au contexte d'état
         self.context.handle_selection(selected_item_id)
 
+    def ask_lieu_de_chargement(self):
+        popup = tk.Tk()
+        popup.withdraw()  # Hide the main popup window
+        
+        lieu_nom = simpledialog.askstring("Lieu de chargement", "Nom société:")
+        lieu_adresse = simpledialog.askstring("Lieu de chargement", "Adresse:")
+        lieu_CP = simpledialog.askstring("Lieu de chargement", "CP:")
+        
+        return lieu_nom, lieu_adresse, lieu_CP
 
+    def generer_bon_entree(self):
+        """
+        Génère un bon d'entrée pour le produit sélectionné.
+        """
+        lieu_nom, lieu_adresse, lieu_CP = self.ask_lieu_de_chargement()
+        if not self.produit_selectionne:
+            messagebox.showerror("Erreur", "Aucun produit sélectionné.")
+            return
+
+        # Récupérer le client correspondant au nom stocké
+        produit = self.produit_selectionne
+        client_nom = produit.client
+        client = self.controller.get_clients().get(client_nom)
+
+        # Générer le bon d'entrée
+        bon_entree_path = generate_bon_entree(
+            client_name=client.nom,
+            address=client.adresse,
+            contact_name=client.nom,
+            contact_phone="N/A",  # Placeholder pour le numéro de téléphone
+            ref_num=self.produit_selectionne.id,
+            description=self.produit_selectionne.description,
+            entrepot_name=self.produit_selectionne.entrepot,
+            date_entree=self.produit_selectionne.get_date(),  # Utiliser la date d'entrée stockée
+            lieu_nom=lieu_nom,
+            lieu_adresse=lieu_adresse,
+            lieu_CP=lieu_CP
+        )
+
+        messagebox.showinfo("Succès", f"Bon d'entrée généré : {bon_entree_path}")
+
+    def generer_bon_sortie(self):
+        """
+        Génère un bon de sortie pour le produit sélectionné.
+        """
+        if not self.produit_selectionne:
+            messagebox.showerror("Erreur", "Aucun produit sélectionné.")
+            return
+
+        # Récupérer le client correspondant au nom stocké
+        produit = self.produit_selectionne
+        client_nom = produit.client
+        client = self.controller.get_clients().get(client_nom)
+
+        # Générer le bon de sortie
+        bon_sortie_path = generate_bon_sortie(
+            client_name=client.nom,
+            address=client.adresse,
+            contact_name=client.nom,
+            contact_phone="N/A",  # Placeholder pour le numéro de téléphone
+            ref_num=self.produit_selectionne.id,
+            description=self.produit_selectionne.description,
+            entrepot_name=self.produit_selectionne.entrepot,
+            date_sortie=self.produit_selectionne.get_date_depart()  # Utiliser la date de sortie si elle est disponible
+        )
+
+        messagebox.showinfo("Succès", f"Bon de sortie généré : {bon_sortie_path}")
 
     def afficher_details_produit(self, produit):
+        """
+        Affiche les détails du produit en récupérant la date d'entrée depuis Firebase via le contrôleur.
+        """
+        produit_id = produit.id  # Récupérer l'ID du produit sélectionné
+
+        # Demander au contrôleur de récupérer la date d'entrée depuis Firebase
+        date_entree = self.controller.recuperer_date_entree(produit_id)
+
+        # Formater les détails du produit à afficher
         details = (
             f"Nom : {produit.nom}\n"
             f"Client : {produit.client}\n"
             f"Description : {produit.description}\n"
             f"Emplacement : {produit.emplacement}\n"
             f"Entrepôt : {produit.entrepot}\n"
-            f"Date d'ajout : {produit.date.strftime('%d/%m/%Y')}"
+            f"Date d'ajout : {date_entree}"  # Afficher la date récupérée depuis Firebase
         )
+
+        # Mettre à jour le label dans la vue
         self.details_label.config(text=details)
+
 
     def reset_selection(self):
         """
@@ -216,11 +300,13 @@ class View:
         self.btn_deplacer_produit.config(state=tk.NORMAL)
         self.btn_edit.config(state=tk.NORMAL)  # Activer le bouton d'édition
         self.btn_supprimer_produit.config(state=tk.NORMAL)  # Activer le bouton suppression
+        self.btn_bon_entree.config(state = tk.NORMAL)
 
     def update_interface_for_product_selected(self):
         self.btn_deplacer_produit.config(state=tk.NORMAL)
         self.btn_edit.config(state=tk.NORMAL)  # Activer le bouton d'édition
         self.btn_supprimer_produit.config(state=tk.NORMAL)
+        self.btn_bon_entree.config(state = tk.NORMAL)
 
     def update_interface_for_nothing_selected(self):
         """
@@ -356,19 +442,13 @@ class View:
 
         if confirmation:
             produit_id = self.produit_selectionne.id
+            #self.generer_bon_sortie()
             self.controller.supprimer_produit(produit_id)
             messagebox.showinfo("Succès", f"Produit {self.produit_selectionne.nom} supprimé avec succès.")
             
             # Rafraîchir l'arborescence après la suppression
             self.refresh_tree_view()
 
-    def ajouter_produit(self):
-        if not self.entrepot_selectionne or not self.emplacement_selectionne:
-            messagebox.showerror("Erreur", "Veuillez sélectionner un emplacement vide pour ajouter un produit.")
-            return
-
-        # Changer l'état vers AddingProductState
-        self.context.set_state(AddingProductState())
 
     def deplacer_produit(self):
         """
@@ -704,6 +784,8 @@ class View:
             self.refresh_tree_view()
         else:
             messagebox.showerror("Erreur", "La mise à jour de l'entrepôt a échoué.")
+
+
 
 
 
