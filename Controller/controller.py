@@ -346,6 +346,24 @@ class Controller:
             return {emplacement.nom: emplacement.produit.nom if emplacement.produit else None
                     for emplacement in self.entrepots[entrepot_nom].lister_emplacements()}
         return {}
+    
+    def recuperer_data_client(self, client_nom):
+        """
+        Récupère les informations d'un client depuis Firebase.
+        """
+        client_data = db.reference(f"clients/{client_nom}").get()
+        if client_data:
+            return {
+                "nom": client_data.get("nom", "Nom inconnu"),
+                "adresse": client_data.get("adresse", "Adresse non spécifiée"),
+                "nom_societe": client_data.get("nom_societe", "Société non spécifiée")
+            }
+        return {
+            "nom": "Nom inconnu",
+            "adresse": "Adresse non spécifiée",
+            "nom_societe": "Société non spécifiée"
+        }
+
 
     def get_historique_produits_supprimes(self):
         """

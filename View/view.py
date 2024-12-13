@@ -799,16 +799,26 @@ class View:
         ).pack(pady=10)
 
     def generer_bon_entree(self):
-        selected_products = self.get_selected_products()
-        if not selected_products:
+        """
+        Génère un bon d'entrée pour les produits sélectionnés.
+        """
+        produits = self.get_selected_products()
+        if not produits:
             messagebox.showerror("Erreur", "Aucun produit sélectionné.")
             return
 
-        output_path = generate_bon_entree(
-            produits=selected_products,
-            entrepot="Nom de l'entrepôt"  # Remplacez par l'entrepôt sélectionné si nécessaire
-        )
-        messagebox.showinfo("Succès", f"Bon d'entrée généré : {output_path}")
+        # Récupérer les dates d'entrée depuis Firebase et mettre à jour chaque produit
+        for produit in produits:
+            produit.date_entree = self.controller.recuperer_date_entree(produit.id)
+
+        entrepot = produits[0].entrepot  # Supposons que tous les produits sont dans le même entrepôt
+
+        try:
+            output_path = generate_bon_entree(produits, entrepot, self.controller)  # Inclure le contrôleur
+            messagebox.showinfo("Succès", f"Bon d'entrée généré : {output_path}")
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Une erreur est survenue : {str(e)}")
+
 
     def generer_bon_sortie(self):
         """
@@ -874,7 +884,6 @@ class View:
             command=self.valider_ajout_client_pour_bon
         ).grid(row=3, columnspan=2, pady=10)
 
-
     def valider_ajout_client_pour_bon(self):
         """
         Valide l'ajout d'un nouveau client dans la base de données et sélectionne ce client.
@@ -896,9 +905,12 @@ class View:
             clients = list(self.controller.get_clients().values())
             self.client_menu['values'] = [client.nom for client in clients]
             self.client_var.set(nom)  # Sélectionner automatiquement le nouveau client
+
+            # Relancer la validation avec le nouveau client
+            produits = self.get_selected_products()
+            self.valider_client_pour_bon_sortie(produits)
         else:
             messagebox.showerror("Erreur", f"Le client {nom} existe déjà.")
-
 
     def valider_client_pour_bon_sortie(self, produits):
         """
@@ -909,8 +921,9 @@ class View:
             messagebox.showerror("Erreur", "Veuillez sélectionner ou ajouter un client.")
             return
 
-        client = self.controller.get_clients().get(client_nom)
-        if not client:
+        # Utiliser la méthode existante pour récupérer les données du client
+        client_data = self.controller.recuperer_data_client(client_nom)
+        if not client_data or client_data["nom"] == "Nom inconnu":
             messagebox.showerror("Erreur", "Le client sélectionné est introuvable.")
             return
 
@@ -918,8 +931,9 @@ class View:
         for produit in produits:
             produit.date_entree = self.controller.recuperer_date_entree(produit.id)
 
+        # Générer le bon de sortie
         entrepot = produits[0].entrepot  # Supposons que tous les produits sont dans le même entrepôt
-        output_path = generate_bon_sortie(produits, entrepot, client)
+        output_path = generate_bon_sortie(produits, entrepot, client_data)
 
         # Afficher une notification de succès pour le bon généré
         messagebox.showinfo("Succès", f"Bon de sortie généré : {output_path}")
@@ -936,7 +950,6 @@ class View:
                 self.controller.supprimer_produit(produit.id)
             messagebox.showinfo("Succès", "Produits supprimés avec succès.")
             self.refresh_tree_view()  # Rafraîchir l'interface après suppression
-
 
 
 
