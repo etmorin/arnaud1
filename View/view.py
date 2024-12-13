@@ -1,10 +1,10 @@
 import tkinter as tk
 from tkinter import simpledialog
-from bons import generate_bon_entree, generate_bon_sortie
+from Model.generate_pdf import generate_bon_entree, generate_bon_sortie
 from tkinter import ttk, messagebox
-from controller import Controller
-from selection_context import SelectionContext
-from state import NeutralState, ProductSelectedState, MovingProductState, AddingProductState, NothingSelectedState
+from Controller.controller import Controller
+from Controller.selection_context import SelectionContext
+from Model.state import NeutralState, ProductSelectedState, MovingProductState, AddingProductState, NothingSelectedState
 
 class View:
     def __init__(self, root, controller):
@@ -38,9 +38,6 @@ class View:
         self.btn_deplacer_produit.grid(row=0, column=3, padx=5)
         self.btn_deplacer_produit.config(state=tk.DISABLED)
 
-        self.btn_bon_entree = tk.Button(action_frame, text="Bon d'entrée", command=self.generer_bon_entree)
-        self.btn_bon_entree.grid(row=0, column=6, padx=5)
-        self.btn_bon_entree.config(state=tk.DISABLED)
 
         self.btn_edit = tk.Button(action_frame, text="Edit", command=self.editer_element)
         self.btn_edit.grid(row=0, column=4, padx=5)
@@ -54,6 +51,11 @@ class View:
         self.btn_clients = tk.Button(action_frame, text="Clients", command=self.ouvrir_fenetre_clients)
         self.btn_clients.grid(row=1, column=0, columnspan=6, pady=10)  # Placé sur une nouvelle ligne avec un padding vertical
 
+        self.btn_lister_produits = tk.Button(action_frame, text="Lister produits", command=self.lister_produits)
+        self.btn_lister_produits.grid(row=1, column=2, columnspan=6, pady=10)
+
+        self.btn_historique = tk.Button(action_frame, text="Historique", command=self.consulter_historique)
+        self.btn_historique.grid(row=1, column=6, columnspan=6, pady=10)
 
         # Cadre gauche : Arborescence
         self.left_frame = tk.Frame(self.root)
@@ -190,32 +192,7 @@ class View:
 
         messagebox.showinfo("Succès", f"Bon d'entrée généré : {bon_entree_path}")
 
-    def generer_bon_sortie(self):
-        """
-        Génère un bon de sortie pour le produit sélectionné.
-        """
-        if not self.produit_selectionne:
-            messagebox.showerror("Erreur", "Aucun produit sélectionné.")
-            return
 
-        # Récupérer le client correspondant au nom stocké
-        produit = self.produit_selectionne
-        client_nom = produit.client
-        client = self.controller.get_clients().get(client_nom)
-
-        # Générer le bon de sortie
-        bon_sortie_path = generate_bon_sortie(
-            client_name=client.nom,
-            address=client.adresse,
-            contact_name=client.nom,
-            contact_phone="N/A",  # Placeholder pour le numéro de téléphone
-            ref_num=self.produit_selectionne.id,
-            description=self.produit_selectionne.description,
-            entrepot_name=self.produit_selectionne.entrepot,
-            date_sortie=self.produit_selectionne.get_date_depart()  # Utiliser la date de sortie si elle est disponible
-        )
-
-        messagebox.showinfo("Succès", f"Bon de sortie généré : {bon_sortie_path}")
 
     def afficher_details_produit(self, produit):
         """
@@ -300,13 +277,13 @@ class View:
         self.btn_deplacer_produit.config(state=tk.NORMAL)
         self.btn_edit.config(state=tk.NORMAL)  # Activer le bouton d'édition
         self.btn_supprimer_produit.config(state=tk.NORMAL)  # Activer le bouton suppression
-        self.btn_bon_entree.config(state = tk.NORMAL)
+
 
     def update_interface_for_product_selected(self):
         self.btn_deplacer_produit.config(state=tk.NORMAL)
         self.btn_edit.config(state=tk.NORMAL)  # Activer le bouton d'édition
         self.btn_supprimer_produit.config(state=tk.NORMAL)
-        self.btn_bon_entree.config(state = tk.NORMAL)
+
 
     def update_interface_for_nothing_selected(self):
         """
@@ -342,7 +319,6 @@ class View:
                 self.btn_deplacer_produit.config(state=tk.NORMAL)
                 self.btn_edit.config(state=tk.NORMAL)
                 self.btn_supprimer_produit.config(state=tk.NORMAL)
-
 
 
     def confirmer_echange(self, produit_cible, selected_item_id):
@@ -784,7 +760,246 @@ class View:
             self.refresh_tree_view()
         else:
             messagebox.showerror("Erreur", "La mise à jour de l'entrepôt a échoué.")
+    
+    def lister_produits(self):
+        """
+        Affiche une fenêtre listant tous les produits non vides et permet de les sélectionner pour générer un bon.
+        """
+        self.popup_lister_produits = tk.Toplevel()
+        self.popup_lister_produits.title("Lister les Produits")
 
+        # Récupérer la liste des produits non vides
+        produits_non_vides = []
+        for entrepot in self.controller.get_entrepots().values():
+            produits_non_vides += entrepot.liste_emplacements_pleins()
+
+        self.check_vars = {}  # Réinitialiser les variables de sélection
+
+        # Créer une liste déroulante avec des cases à cocher
+        for index, produit in enumerate(produits_non_vides):
+            check_var = tk.BooleanVar()
+            self.check_vars[produit] = check_var  # Stocker l'objet produit comme clé
+            tk.Checkbutton(
+                self.popup_lister_produits,
+                text=f"{produit.nom} - {produit.description}",
+                variable=check_var
+            ).pack(anchor="w")
+
+        # Ajouter des boutons pour générer les bons
+        tk.Button(
+            self.popup_lister_produits,
+            text="Générer Bon d'Entrée",
+            command=self.generer_bon_entree
+        ).pack(pady=10)
+
+        tk.Button(
+            self.popup_lister_produits,
+            text="Générer Bon de Sortie",
+            command=self.generer_bon_sortie
+        ).pack(pady=10)
+
+    def generer_bon_entree(self):
+        selected_products = self.get_selected_products()
+        if not selected_products:
+            messagebox.showerror("Erreur", "Aucun produit sélectionné.")
+            return
+
+        output_path = generate_bon_entree(
+            produits=selected_products,
+            entrepot="Nom de l'entrepôt"  # Remplacez par l'entrepôt sélectionné si nécessaire
+        )
+        messagebox.showinfo("Succès", f"Bon d'entrée généré : {output_path}")
+
+    def generer_bon_sortie(self):
+        """
+        Génère un bon de sortie pour les produits sélectionnés.
+        Demande à l'utilisateur de choisir un client ou d'en ajouter un nouveau.
+        """
+        produits = self.get_selected_products()
+        if not produits:
+            messagebox.showerror("Erreur", "Aucun produit sélectionné.")
+            return
+
+        # Ouvrir une fenêtre pour sélectionner ou ajouter un client
+        self.popup_client = tk.Toplevel()
+        self.popup_client.title("Choisir un client")
+
+        tk.Label(self.popup_client, text="Sélectionnez un client ou ajoutez-en un nouveau :").pack(pady=10)
+
+        # Liste des clients dans un menu déroulant
+        clients = list(self.controller.get_clients().values())  # Récupérer les objets Client
+        self.client_var = tk.StringVar(self.popup_client)
+
+        if clients:
+            self.client_menu = ttk.Combobox(self.popup_client, textvariable=self.client_var)
+            self.client_menu['values'] = [client.nom for client in clients]
+            self.client_menu.pack(pady=10)
+        else:
+            tk.Label(self.popup_client, text="Aucun client existant. Veuillez en ajouter un.").pack()
+
+        # Bouton pour ajouter un nouveau client
+        tk.Button(self.popup_client, text="Ajouter un Client", command=self.ajouter_client_pour_bon).pack(pady=10)
+
+        # Boutons de validation et annulation
+        tk.Button(
+            self.popup_client,
+            text="Valider",
+            command=lambda: self.valider_client_pour_bon_sortie(produits)
+        ).pack(pady=10)
+        tk.Button(self.popup_client, text="Annuler", command=self.popup_client.destroy).pack(pady=10)
+
+
+    def ajouter_client_pour_bon(self):
+        """
+        Ouvre une fenêtre pour ajouter un nouveau client à la base de données.
+        """
+        self.popup_add_client = tk.Toplevel()
+        self.popup_add_client.title("Ajouter un Client")
+
+        tk.Label(self.popup_add_client, text="Nom du client:").grid(row=0, column=0)
+        self.nom_client_entry = tk.Entry(self.popup_add_client)
+        self.nom_client_entry.grid(row=0, column=1)
+
+        tk.Label(self.popup_add_client, text="Adresse:").grid(row=1, column=0)
+        self.adresse_client_entry = tk.Entry(self.popup_add_client)
+        self.adresse_client_entry.grid(row=1, column=1)
+
+        tk.Label(self.popup_add_client, text="Nom de société:").grid(row=2, column=0)
+        self.nom_societe_client_entry = tk.Entry(self.popup_add_client)
+        self.nom_societe_client_entry.grid(row=2, column=1)
+
+        tk.Button(
+            self.popup_add_client,
+            text="Ajouter",
+            command=self.valider_ajout_client_pour_bon
+        ).grid(row=3, columnspan=2, pady=10)
+
+
+    def valider_ajout_client_pour_bon(self):
+        """
+        Valide l'ajout d'un nouveau client dans la base de données et sélectionne ce client.
+        """
+        nom = self.nom_client_entry.get()
+        adresse = self.adresse_client_entry.get()
+        nom_societe = self.nom_societe_client_entry.get()
+
+        if not nom:
+            messagebox.showerror("Erreur", "Le nom du client est obligatoire.")
+            return
+
+        success = self.controller.ajouter_client(nom, adresse, nom_societe)
+        if success:
+            messagebox.showinfo("Succès", f"Client {nom} ajouté avec succès.")
+            self.popup_add_client.destroy()
+
+            # Mettre à jour le menu déroulant avec le nouveau client
+            clients = list(self.controller.get_clients().values())
+            self.client_menu['values'] = [client.nom for client in clients]
+            self.client_var.set(nom)  # Sélectionner automatiquement le nouveau client
+        else:
+            messagebox.showerror("Erreur", f"Le client {nom} existe déjà.")
+
+
+    def valider_client_pour_bon_sortie(self, produits):
+        """
+        Valide le client sélectionné ou ajouté pour générer le bon de sortie.
+        """
+        client_nom = self.client_var.get()
+        if not client_nom:
+            messagebox.showerror("Erreur", "Veuillez sélectionner ou ajouter un client.")
+            return
+
+        client = self.controller.get_clients().get(client_nom)
+        if not client:
+            messagebox.showerror("Erreur", "Le client sélectionné est introuvable.")
+            return
+
+        # Récupérer les dates d'entrée depuis Firebase et mettre à jour chaque produit
+        for produit in produits:
+            produit.date_entree = self.controller.recuperer_date_entree(produit.id)
+
+        entrepot = produits[0].entrepot  # Supposons que tous les produits sont dans le même entrepôt
+        output_path = generate_bon_sortie(produits, entrepot, client)
+
+        # Afficher une notification de succès pour le bon généré
+        messagebox.showinfo("Succès", f"Bon de sortie généré : {output_path}")
+
+        self.popup_client.destroy()
+
+        # Demander confirmation pour supprimer les produits
+        confirmation_suppression = messagebox.askyesno(
+            "Confirmation de suppression",
+            "Souhaitez-vous supprimer les produits listés dans le bon de sortie ?"
+        )
+        if confirmation_suppression:
+            for produit in produits:
+                self.controller.supprimer_produit(produit.id)
+            messagebox.showinfo("Succès", "Produits supprimés avec succès.")
+            self.refresh_tree_view()  # Rafraîchir l'interface après suppression
+
+
+
+
+    def get_selected_products(self):
+        """
+        Récupère les objets produits sélectionnés avec leurs informations à jour depuis Firebase.
+        """
+        selected_products = []
+        for produit, var in self.check_vars.items():
+            if var.get():
+                # Récupérer les données à jour depuis Firebase pour chaque produit sélectionné
+                date_entree = self.controller.recuperer_date_entree(produit.id)
+                print(date_entree)
+                produit.date_entree = date_entree  # Mettre à jour l'objet produit avec la date d'entrée
+                selected_products.append(produit)
+        return selected_products
+
+
+    def consulter_historique(self):
+        """
+        Ouvre une fenêtre pour afficher l'historique des produits supprimés.
+        """
+        produits_supprimes = self.controller.get_historique_produits_supprimes()
+
+        # Fenêtre popup
+        self.popup_historique = tk.Toplevel()
+        self.popup_historique.title("Historique des Produits Supprimés")
+
+        # Tableau
+        tree_historique = ttk.Treeview(self.popup_historique, columns=(
+            'id', 'nom', 'client_nom', 'description', 'entrepot_nom', 'emplacement', 'date_entree', 'date_depart'
+        ), show='headings', height=20)
+
+        tree_historique.heading('id', text="ID")
+        tree_historique.heading('nom', text="Nom")
+        tree_historique.heading('client_nom', text="Client")
+        tree_historique.heading('description', text="Description")
+        tree_historique.heading('entrepot_nom', text="Entrepôt")
+        tree_historique.heading('emplacement', text="Emplacement")
+        tree_historique.heading('date_entree', text="Date d'Entrée")
+        tree_historique.heading('date_depart', text="Date de Sortie")
+
+        tree_historique.column('id', width=100)
+        tree_historique.column('nom', width=150)
+        tree_historique.column('client_nom', width=150)
+        tree_historique.column('description', width=250)
+        tree_historique.column('entrepot_nom', width=150)
+        tree_historique.column('emplacement', width=100)
+        tree_historique.column('date_entree', width=120)
+        tree_historique.column('date_depart', width=120)
+
+        # Insérer les données
+        for produit in produits_supprimes:
+            tree_historique.insert('', 'end', values=(
+                produit['id'], produit['nom'], produit['client_nom'], produit['description'],
+                produit['entrepot_nom'], produit['emplacement'], produit['date_entree'], produit['date_depart']
+            ))
+
+        tree_historique.pack(fill='both', expand=True, padx=10, pady=10)
+
+        # Bouton de fermeture
+        btn_fermer = tk.Button(self.popup_historique, text="Fermer", command=self.popup_historique.destroy)
+        btn_fermer.pack(pady=10)
 
 
 

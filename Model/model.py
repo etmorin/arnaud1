@@ -10,28 +10,15 @@ class Produit:
         self.client = client
         self.description = description
         self.id = id_produit  # ID unique généré par Firebase
-        self.qr_code = self.generate_qr_code()
         self.entrepot = entrepot
         self.emplacement = emplacement
-        self.date_entree = datetime.datetime.now()
+        self.date_entree = None
         self.date_depart = None
         self.date_modif = None
+        self.generate_date_entree()
 
-    def generate_qr_code(self):
-        # Générer le QR code avec l'ID du produit comme contenu
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=10,
-            border=4,
-        )
-        qr.add_data(f"ID: {self.id} - Nom: {self.nom}")
-        qr.make(fit=True)
-
-        # Générer l'image du QR code
-        img = qr.make_image(fill='black', back_color='white')
-
-        return img
+    def generate_date_entree(self):
+        self.date_entree = datetime.datetime.now()
 
     def set_entrepot(self, nouvel_entrepot):
         self.entrepot = nouvel_entrepot
@@ -42,7 +29,7 @@ class Produit:
     def get_id(self):
         return self.id
     
-    def get_date(self):
+    def get_date_entree(self):
         return self.date_entree
     
     def get_date_depart(self):
@@ -75,8 +62,15 @@ class Entrepot:
         return self.emplacements.get(nom_emplacement)
 
     def lister_emplacements(self):
-        return list(self.emplacements.values())  # Retourner une liste de tous les objets Emplacement
+        return list(self.emplacements.values())  # Retourner une liste de tous les objets Emplacemen
+    
+    def liste_emplacements_pleins(self):
 
+        emplacements_plein = []
+        for emplacement in self.emplacements.values():
+            if not emplacement.est_vide():
+                emplacements_plein.append(emplacement.produit)
+        return emplacements_plein
 
 
 class Emplacement:

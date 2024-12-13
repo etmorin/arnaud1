@@ -1,4 +1,4 @@
-from state import NeutralState, ProductSelectedState, MovingProductState
+from Model.state import NeutralState, ProductSelectedState, MovingProductState
 
 class SelectionContext:
     """

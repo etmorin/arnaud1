@@ -1,9 +1,8 @@
 # main.py
 
-# Importer la configuration Firebase et les modules MVC
-from firebase_config import db
-from controller import Controller
-from view import View
+
+from Controller.controller import Controller
+from View.view import View
 import tkinter as tk
 
 # Initialiser l'application en récupérant les données depuis Firebase

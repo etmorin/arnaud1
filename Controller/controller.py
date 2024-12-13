@@ -1,5 +1,5 @@
-from model import Produit, Entrepot, Client, Emplacement  # Importer les classes du modèle
-from firebase_config import db  # Importer la configuration de Firebase
+from Model.model import Produit, Entrepot, Client, Emplacement  # Importer les classes du modèle
+from Model.firebase_config import db  # Importer la configuration de Firebase
 import datetime
 
 class Controller:
@@ -280,6 +280,16 @@ class Controller:
         if id_produit in self.produits:
             produit = self.produits[id_produit]
             
+            # Récupérer la date d'entrée depuis Firebase
+            date_entree = self.recuperer_date_entree(id_produit)
+            if isinstance(date_entree, str):
+                # Vérifier si la date récupérée est valide
+                try:
+                    date_entree = datetime.datetime.strptime(date_entree, '%Y-%m-%d')
+                except ValueError:
+                    print("Erreur : La date d'entrée récupérée est invalide.")
+                    date_entree = None
+
             # Ajouter la date de départ
             date_depart = datetime.datetime.now().strftime('%Y-%m-%d')
             
@@ -290,7 +300,7 @@ class Controller:
                 'description': produit.description,
                 'entrepot_nom': produit.entrepot,
                 'emplacement': produit.emplacement,
-                'date_entree': produit.date_entree.strftime('%Y-%m-%d'),
+                'date_entree': date_entree.strftime('%Y-%m-%d') if date_entree else 'Date inconnue',
                 'date_depart': date_depart  # Ajouter la date de départ
             }
             
@@ -314,6 +324,7 @@ class Controller:
         else:
             print("Produit non trouvé.")
 
+
     def recuperer_date_entree(self, produit_id):
         """
         Récupère la date d'entrée du produit depuis Firebase.
@@ -335,3 +346,26 @@ class Controller:
             return {emplacement.nom: emplacement.produit.nom if emplacement.produit else None
                     for emplacement in self.entrepots[entrepot_nom].lister_emplacements()}
         return {}
+
+    def get_historique_produits_supprimes(self):
+        """
+        Récupère l'historique des produits supprimés depuis Firebase.
+        """
+        produits_supprimes_ref = db.reference('produits_supprimes')
+        produits_supprimes = produits_supprimes_ref.get()
+
+        if produits_supprimes:
+            return [
+                {
+                    'id': produit_id,
+                    'nom': data.get('nom', 'Nom inconnu'),
+                    'client_nom': data.get('client_nom', 'Client inconnu'),
+                    'description': data.get('description', 'Description non disponible'),
+                    'entrepot_nom': data.get('entrepot_nom', 'Entrepôt inconnu'),
+                    'emplacement': data.get('emplacement', 'Emplacement inconnu'),
+                    'date_entree': data.get('date_entree', 'Date inconnue'),
+                    'date_depart': data.get('date_depart', 'Date inconnue')
+                }
+                for produit_id, data in produits_supprimes.items()
+            ]
+        return []
