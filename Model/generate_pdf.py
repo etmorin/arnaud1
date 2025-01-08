@@ -24,7 +24,7 @@ def generate_bon_entree(produits, entrepot, controller, output_folder="bons_entr
 
     # En-tête
     c.setFont("Helvetica-Bold", 14)
-    c.drawString(50, height - 50, f"Arnaud Entrepôts")
+    c.drawString(50, height - 50, f"Arnaud Entrepôts            BON D'ENTREE")
     c.drawString(50, height - 70, f"Entrepôt: {entrepot}")
     c.drawString(50, height - 90, f"Date d'impression: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
     c.line(50, height - 100, width - 50, height - 100)
@@ -42,7 +42,7 @@ def generate_bon_entree(produits, entrepot, controller, output_folder="bons_entr
         c.drawString(50, y_position, f"Produit: {produit.nom}")
         y_position -= 20
         c.setFont("Helvetica", 12)
-        c.drawString(50, y_position, f"Numéro de facture: {produit.id.replace('prod-', '')}")
+        c.drawString(50, y_position, f"Numéro de facture:{datetime.now().strftime('%Y%m%d')}{produit.id.replace('prod-', '')}")
         y_position -= 20
         c.drawString(50, y_position, f"Client: {client_data['nom']}")
         y_position -= 20
@@ -87,7 +87,7 @@ def generate_bon_sortie(produits, entrepot, client_data, output_dir="bons_sortie
 
     # En-tête
     c.setFont("Helvetica-Bold", 14)
-    c.drawString(50, height - 50, "Arnaud Entrepôts")
+    c.drawString(50, height - 50, "Arnaud Entrepôts         BON DE SORTIE")
     c.drawString(50, height - 70, f"Entrepôt : {entrepot}")
     c.drawString(50, height - 90, f"Date d'impression : {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
@@ -114,6 +114,8 @@ def generate_bon_sortie(produits, entrepot, client_data, output_dir="bons_sortie
         y_position -= 20
         c.drawString(50, y_position, f"Date d'entrée : {produit.date_entree}")
         y_position -= 40
+        c.line(50, y_position, width - 50, y_position)
+        y_position -= 20
 
         # Ajouter une nouvelle page si l'espace est insuffisant
         if y_position < 100:

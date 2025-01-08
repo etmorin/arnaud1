@@ -41,7 +41,7 @@ class View:
 
         self.btn_edit = tk.Button(action_frame, text="Edit", command=self.editer_element)
         self.btn_edit.grid(row=0, column=4, padx=5)
-        self.btn_edit.config(state=tk.DISABLED)
+        self.btn_edit.config(state=tk.NORMAL)
 
         self.btn_supprimer_produit = tk.Button(action_frame, text="Supprimer Produit", command=self.supprimer_produit)
         self.btn_supprimer_produit.grid(row=0, column=5, padx=5)
@@ -71,7 +71,7 @@ class View:
         self.left_frame.grid_columnconfigure(0, weight=1)
 
         # Fixer une largeur à la colonne principale de l'arborescence
-        self.tree.column("#0", width=150)
+        self.tree.column("#0", width=200)
 
         # Informations de l'élément sélectionné
         self.details_label = tk.Label(self.right_frame, text="Informations de l'élément sélectionné", anchor='w')
@@ -121,35 +121,34 @@ class View:
         Gère la sélection dans l'arborescence et délègue le traitement au contexte d'état.
         """
         selected_item_id = self.tree.focus()
-
-        # Vérifier si l'élément sélectionné est un emplacement vide ou un produit
+        selected_text = self.tree.item(selected_item_id)['text']
         parent_item = self.tree.parent(selected_item_id)
 
-        if parent_item:
-            # Il s'agit d'un produit ou d'un emplacement, récupérer l'entrepôt et l'emplacement sélectionnés
+        if not parent_item:
+            # Si le parent est vide, c'est un entrepôt
+            self.entrepot_selectionne = selected_text
+            self.emplacement_selectionne = None
+            self.produit_selectionne = None
+            print(f"Entrepôt sélectionné : {self.entrepot_selectionne}")
+            self.details_label.config(text=f"Entrepôt : {self.entrepot_selectionne}")
+        else:
+            # Si le parent existe, c'est un emplacement ou un produit
             self.entrepot_selectionne = self.tree.item(parent_item)['text']
-            emplacement_nom = self.tree.item(selected_item_id)['text'].split(" ")[0]
+            emplacement_nom = selected_text.split(" ")[0]
             self.emplacement_selectionne = emplacement_nom
 
-            # Vérifier si un produit est sélectionné à cet emplacement
             emplacement = self.controller.entrepots[self.entrepot_selectionne].get_emplacement(emplacement_nom)
             if emplacement and not emplacement.est_vide():
-                self.produit_selectionne = emplacement.produit  # Mettre à jour le produit sélectionné
+                self.produit_selectionne = emplacement.produit
                 print(f"Produit sélectionné : {self.produit_selectionne.nom}")
-                
-                # Appeler la méthode pour afficher les détails du produit
                 self.afficher_details_produit(self.produit_selectionne)
             else:
-                self.produit_selectionne = None  # Aucune sélection de produit
+                self.produit_selectionne = None
                 print(f"Emplacement vide sélectionné : {emplacement_nom} dans {self.entrepot_selectionne}")
-                # Si l'emplacement est vide, effacer les détails affichés
                 self.details_label.config(text="Aucun produit sélectionné.")
-        else:
-            # Si aucun produit ou emplacement valide n'est sélectionné, réinitialiser la zone de détails
-            self.details_label.config(text="Aucun produit sélectionné.")
 
-        # Déléguer la gestion de la sélection au contexte d'état
         self.context.handle_selection(selected_item_id)
+
 
     def ask_lieu_de_chargement(self):
         popup = tk.Tk()
@@ -272,11 +271,21 @@ class View:
             return emplacement and emplacement.est_vide()
         return False
 
-    def update_interface_for_selection(self, selected_item):
-        self.btn_ajouter_produit.config(state=tk.DISABLED)
-        self.btn_deplacer_produit.config(state=tk.NORMAL)
-        self.btn_edit.config(state=tk.NORMAL)  # Activer le bouton d'édition
-        self.btn_supprimer_produit.config(state=tk.NORMAL)  # Activer le bouton suppression
+    def update_interface_for_selection(self, selected_item_id):
+        """
+        Met à jour l'interface selon l'élément sélectionné dans l'arborescence.
+        """
+        parent_item = self.tree.parent(selected_item_id)
+
+        if not parent_item:
+            # Si le parent est vide, c'est un entrepôt
+            self.btn_edit.config(state=tk.NORMAL)
+        else:
+            # Si un produit ou un emplacement est sélectionné
+            self.btn_ajouter_produit.config(state=tk.NORMAL)
+            self.btn_deplacer_produit.config(state=tk.NORMAL)
+            self.btn_edit.config(state=tk.NORMAL)
+            self.btn_supprimer_produit.config(state=tk.NORMAL)
 
 
     def update_interface_for_product_selected(self):
@@ -710,9 +719,7 @@ class View:
         """
         Fenêtre pop-up pour éditer un entrepôt sélectionné.
         """
-        if not self.entrepot_selectionne:
-            messagebox.showerror("Erreur", "Veuillez sélectionner un entrepôt.")
-            return
+
 
         self.popup = tk.Toplevel()
         self.popup.title(f"Éditer l'entrepôt {self.entrepot_selectionne}")
@@ -760,6 +767,8 @@ class View:
             self.refresh_tree_view()
         else:
             messagebox.showerror("Erreur", "La mise à jour de l'entrepôt a échoué.")
+
+        self.refresh_tree_view()
     
     def lister_produits(self):
         """
@@ -980,7 +989,7 @@ class View:
 
         # Tableau
         tree_historique = ttk.Treeview(self.popup_historique, columns=(
-            'id', 'nom', 'client_nom', 'description', 'entrepot_nom', 'emplacement', 'date_entree', 'date_depart'
+            'id', 'nom', 'client_nom', 'description', 'entrepot_nom', 'emplacement', 'date_entree', 'date_depart', 'numero_facture'
         ), show='headings', height=20)
 
         tree_historique.heading('id', text="ID")
@@ -991,6 +1000,7 @@ class View:
         tree_historique.heading('emplacement', text="Emplacement")
         tree_historique.heading('date_entree', text="Date d'Entrée")
         tree_historique.heading('date_depart', text="Date de Sortie")
+        tree_historique.heading('numero_facture', text="Numéro de Facture")
 
         tree_historique.column('id', width=100)
         tree_historique.column('nom', width=150)
@@ -1000,13 +1010,23 @@ class View:
         tree_historique.column('emplacement', width=100)
         tree_historique.column('date_entree', width=120)
         tree_historique.column('date_depart', width=120)
+        tree_historique.column('numero_facture', width=120)
 
+        # Insérer les données
         # Insérer les données
         for produit in produits_supprimes:
             tree_historique.insert('', 'end', values=(
-                produit['id'], produit['nom'], produit['client_nom'], produit['description'],
-                produit['entrepot_nom'], produit['emplacement'], produit['date_entree'], produit['date_depart']
+                produit.get('id', 'ID inconnu'),  # ID
+                produit.get('nom', 'Nom inconnu'),  # Nom
+                produit.get('client_nom', 'Client inconnu'),  # Client
+                produit.get('description', 'Description non spécifiée'),  # Description
+                produit.get('entrepot_nom', 'Entrepôt inconnu'),  # Entrepôt
+                produit.get('emplacement', 'Emplacement inconnu'),  # Emplacement
+                produit.get('date_entree', 'Date inconnue'),  # Date d'entrée
+                produit.get('date_depart', 'Date inconnue'),  # Date de sortie
+                produit.get('numero_facture', 'Non disponible')  # Numéro de facture
             ))
+
 
         tree_historique.pack(fill='both', expand=True, padx=10, pady=10)
 

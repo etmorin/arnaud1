@@ -252,29 +252,43 @@ class Controller:
         return False
     
     def editer_entrepot(self, nom_actuel, nouveau_nom, commune, nombre_etages, emplacements_par_etage):
-        """
-        Met à jour un entrepôt dans la base de données et en mémoire.
-        """
         if nom_actuel in self.entrepots:
-            entrepot = self.entrepots[nom_actuel]
+            # Récupérer l'entrepôt actuel
+            entrepot = self.entrepots.pop(nom_actuel)
+
+            # Supprimer l'ancien enregistrement dans Firebase
+            db.reference('entrepots').child(nom_actuel).delete()
+
+            # Mettre à jour les informations de l'entrepôt
             entrepot.nom = nouveau_nom
             entrepot.commune = commune
             entrepot.nombre_etages = nombre_etages
             entrepot.emplacements_par_etage = emplacements_par_etage
 
-            # Mettre à jour Firebase
-            entrepot_ref = db.reference('entrepots').child(nom_actuel)
-            entrepot_ref.update({
-                'nom': nouveau_nom,
+            # Ajouter le nouvel entrepôt dans Firebase
+            db.reference('entrepots').child(nouveau_nom).set({
                 'commune': commune,
                 'nombre_etages': nombre_etages,
                 'emplacements_par_etage': emplacements_par_etage
             })
 
+            # Mettre à jour le dictionnaire des entrepôts en mémoire
+            self.entrepots[nouveau_nom] = entrepot
+
+            # ✅ Mettre à jour les produits liés à cet entrepôt
+            for produit_id, produit in self.produits.items():
+                if produit.entrepot == nom_actuel:
+                    # Mettre à jour l'attribut dans l'objet produit
+                    produit.entrepot = nouveau_nom
+
+                    # Mettre à jour Firebase
+                    db.reference('produits').child(produit_id).update({
+                        'entrepot_nom': nouveau_nom
+                    })
+
             return True
         return False
 
-    import datetime
 
     def supprimer_produit(self, id_produit):
         if id_produit in self.produits:
@@ -301,7 +315,8 @@ class Controller:
                 'entrepot_nom': produit.entrepot,
                 'emplacement': produit.emplacement,
                 'date_entree': date_entree.strftime('%Y-%m-%d') if date_entree else 'Date inconnue',
-                'date_depart': date_depart  # Ajouter la date de départ
+                'date_depart': date_depart,  # Ajouter la date de départ
+                'numero_facture':  f"{datetime.datetime.now().strftime('%Y%m%d')}{produit.id.replace('prod-', '')}"
             }
             
             # Enregistrer dans la collection d'archives
@@ -369,21 +384,22 @@ class Controller:
         """
         Récupère l'historique des produits supprimés depuis Firebase.
         """
-        produits_supprimes_ref = db.reference('produits_supprimes')
-        produits_supprimes = produits_supprimes_ref.get()
+        produits_supprimes = db.reference('produits_supprimes').get()
+        if not produits_supprimes:
+            return []
 
-        if produits_supprimes:
-            return [
-                {
-                    'id': produit_id,
-                    'nom': data.get('nom', 'Nom inconnu'),
-                    'client_nom': data.get('client_nom', 'Client inconnu'),
-                    'description': data.get('description', 'Description non disponible'),
-                    'entrepot_nom': data.get('entrepot_nom', 'Entrepôt inconnu'),
-                    'emplacement': data.get('emplacement', 'Emplacement inconnu'),
-                    'date_entree': data.get('date_entree', 'Date inconnue'),
-                    'date_depart': data.get('date_depart', 'Date inconnue')
-                }
-                for produit_id, data in produits_supprimes.items()
-            ]
-        return []
+        # Structurer les données correctement
+        historique = []
+        for produit_id, produit_data in produits_supprimes.items():
+            historique.append({
+                'id': produit_id,
+                'nom': produit_data.get('nom', 'Nom inconnu'),
+                'client_nom': produit_data.get('client_nom', 'Client inconnu'),
+                'description': produit_data.get('description', 'Description non spécifiée'),
+                'entrepot_nom': produit_data.get('entrepot_nom', 'Entrepôt inconnu'),
+                'emplacement': produit_data.get('emplacement', 'Emplacement inconnu'),
+                'date_entree': produit_data.get('date_entree', 'Date inconnue'),
+                'date_depart': produit_data.get('date_depart', 'Date inconnue'),
+                'numero_facture': produit_data.get('numero_facture', 'Non disponible')
+            })
+        return historique

@@ -1,7 +1,6 @@
 # model.py
 
 import datetime
-import qrcode
 import os
 
 class Produit:
